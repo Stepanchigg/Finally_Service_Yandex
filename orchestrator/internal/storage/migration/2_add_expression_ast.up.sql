@@ -1,0 +1,1 @@
+ALTER TABLE expressions ADD COLUMN ast_json TEXT;
