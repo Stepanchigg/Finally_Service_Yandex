@@ -1,6 +1,6 @@
 syntax = "proto3";
 package proto;
-option go_package = "github.com/my-name/grpc-service-example/proto";
+option go_package = "github/Stepanchigg/Finally_Service_Yandex/orchestrator/internal/proto";
 
 service Calculator {
   rpc GetTask(TaskRequest) returns (TaskResponse) {}

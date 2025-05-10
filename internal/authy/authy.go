@@ -3,9 +3,7 @@ package authy
 import (
 	"errors"
 	"time"
-	"context"
-	"jwt"
-	"github.com/golang-jwt/jwt/v5"
+	"github/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -20,7 +18,7 @@ type User struct {
 	Password       string
 }
 //генерация JWT токена
-func generateJWT(ID int) (string, error){
+func GenerateJWT(ID int) (string, error){
 	const hmacSampleSecret = "super_secret_signature"
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -46,7 +44,7 @@ func ParseJWT(token string) (int, error){
 }
 
 //создание хэша из пароля
-func generateHash(password string) (string, error) {
+func GenerateHash(password string) (string, error) {
 	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
@@ -56,6 +54,6 @@ func generateHash(password string) (string, error) {
 	return hash, nil
 }
 //сравнение хэша и пароля, что был введен
-func compareHash(hash string, password string) error {
+func CompareHash(hash string, password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 }
