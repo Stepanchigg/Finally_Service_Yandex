@@ -13,9 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"google.golang.org/grpc"
-
 	"calc_service/internal/authy"
 	"calc_service/internal/proto"
 	"calc_service/internal/storage"
