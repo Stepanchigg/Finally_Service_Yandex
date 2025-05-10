@@ -3,7 +3,8 @@ package authy
 import (
 	"errors"
 	"time"
-	"github/golang-jwt/jwt/v5"
+
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -28,8 +29,8 @@ func GenerateJWT(ID int) (string, error){
 	return token.SignedString(secretKey)
 }
 
-func ParseJWT(token string) (int, error){
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+func ParseJWT(tokenstr string) (int, error){
+	token, err := jwt.Parse(tokenstr, func(token *jwt.Token) (interface{}, error) {
 		return secretKey, nil
 	})
 	if err != nil {
