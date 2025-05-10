@@ -3,7 +3,7 @@ package main
 import (
 	"log"
 
-	"github/stepanchigg/Final_Zad_2_Vozvrat/internal/agent"
+	"calc_service/internal/agent"
 )
 
 func main() {
