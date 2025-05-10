@@ -3,11 +3,13 @@ package main
 import (
 	"log"
 
-	"github/stepanchigg/Final_Zad_2_Vozvrat/internal/agent"
+	"calc_service/internal/orchestrator"
 )
 
 func main() {
-	agent := agent.NewAgent()
-	log.Println("Starting Agent...")
-	agent.Start()
+	app := orchestrator.NewOrchestrator()
+	log.Println("Starting Orchestrator on port", app.Config.HTTPAddr)
+	if err := app.RunServer(); err != nil {
+		log.Fatal(err)
+	}
 }
