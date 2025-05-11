@@ -1,6 +1,7 @@
-package authy
+package auth
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -9,28 +10,44 @@ import (
 )
 
 var (
-	ErrParse = errors.New("неверные учетные данные")
-	secretKey = []byte("your-secret-key")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	secretKey             = []byte("your-secret-key")
 )
 
 type User struct {
-	ID             int64
-	Name           string
-	Password       string
+	ID       int
+	Login    string
+	Password string
 }
-//генерация JWT токена
-func GenerateJWT(ID int) (string, error){
-	const hmacSampleSecret = "super_secret_signature"
-	now := time.Now()
+
+func GetUserIDFromContext(ctx context.Context) (int, error) {
+	userID, ok := ctx.Value("userID").(int)
+	if !ok {
+		return 0, errors.New("userID не найдено в context")
+	}
+	return userID, nil
+}
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	return string(bytes), err
+}
+
+func CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+
+func GenerateJWT(userID int) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"name": "user_name",
-		"exp":  now.Add(24 * time.Hour).Unix(),
+		"user_id": userID,
+		"exp":     time.Now().Add(time.Hour * 24).Unix(),
 	})
 	return token.SignedString(secretKey)
 }
 
-func ParseJWT(tokenstr string) (int, error){
-	token, err := jwt.Parse(tokenstr, func(token *jwt.Token) (interface{}, error) {
+func ParseJWT(tokenString string) (int, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		return secretKey, nil
 	})
 	if err != nil {
@@ -41,20 +58,5 @@ func ParseJWT(tokenstr string) (int, error){
 		userID := int(claims["user_id"].(float64))
 		return userID, nil
 	}
-	return 0, ErrParse
-}
-
-//создание хэша из пароля
-func GenerateHash(password string) (string, error) {
-	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", err
-	}
-
-	hash := string(hashedBytes[:])
-	return hash, nil
-}
-//сравнение хэша и пароля, что был введен
-func CompareHash(hash string, password string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return 0, ErrInvalidCredentials
 }
