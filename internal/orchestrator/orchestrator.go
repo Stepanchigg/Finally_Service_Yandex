@@ -13,8 +13,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	"google.golang.org/grpc"
-	"calc_service/internal/authy"
+
+	"calc_service/internal/auth"
 	"calc_service/internal/proto"
 	"calc_service/internal/storage"
 )
@@ -39,7 +41,6 @@ type Orchestrator struct {
 	taskStore   map[string]*Task
 	taskQueue   []*Task
 	mu          sync.Mutex
-	exprCounter int64
 	taskCounter int64
 	Storage     *storage.Storage
 }
@@ -145,139 +146,11 @@ func NewOrchestrator() *Orchestrator {
 	}
 }
 
-func (o *Orchestrator) registerHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, `{"error":"недоступный метод"}`, http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req struct {
-		Login    string `json:"login"`
-		Password string `json:"password"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"невалидное тело запроса"}`, http.StatusBadRequest)
-		return
-	}
-
-	if req.Login == "" || req.Password == "" {
-		http.Error(w, `{"error":"Требуются логин и пароль"}`, http.StatusBadRequest)
-		return
-	}
-
-	hashedPassword, err := authy.GenerateHash(req.Password)
-	if err != nil {
-		log.Printf("Failed to hash password: %v", err)
-		http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
-		return
-	}
-
-	userID, err := o.Storage.CreateUser(req.Login, hashedPassword)
-	if err != nil {
-		if errors.Is(err, storage.ErrAlreadyExists) {
-			http.Error(w, `{"error":"Пользователь уже существует"}`, http.StatusConflict)
-			return
-		}
-		log.Printf("Failed to create user: %v", err)
-		http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"id":    userID,
-		"login": req.Login,
-	})
-}
-
-func (o *Orchestrator) loginHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, `{"error":"недоступный метод"}`, http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req struct {
-		Login    string `json:"login"`
-		Password string `json:"password"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"невалидное тело запроса"}`, http.StatusBadRequest)
-		return
-	}
-
-	user, err := o.Storage.GetUserByLogin(req.Login)
-	if err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			http.Error(w, `{"error":"не найден пользователь"}`, http.StatusUnauthorized)
-			return
-		}
-		log.Printf("Failed to get user: %v", err)
-		http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
-		return
-	}
-
-	if err := authy.CompareHash(user.Password, req.Password); err != nil {
-   	 	http.Error(w, `{"error":"неверный пароль"}`, http.StatusUnauthorized)
-    		return
-	}
-
-	token, err := authy.GenerateJWT(user.ID)
-	if err != nil {
-		log.Printf("проблема в генерации токена: %v", err)
-		http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"token": token,
-		"user": map[string]interface{}{
-			"id":    user.ID,
-			"login": user.Login,
-		},
-	})
-}
-
-func (o *Orchestrator) authMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Incoming request to: %s", r.URL.Path)
-
-		if r.URL.Path == "/login" || r.URL.Path == "/register" {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			http.Error(w, `{"error":"Требуется заголовок авторизации"}`, http.StatusUnauthorized)
-			return
-		}
-
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		if tokenString == "" {
-			http.Error(w, `{"error":"неверный заголовок авторизации"}`, http.StatusUnauthorized)
-			return
-		}
-
-		userID, err := authy.ParseJWT(tokenString)
-		if err != nil {
-			http.Error(w, `{"error":"неверный токен"}`, http.StatusUnauthorized)
-			return
-		}
-
-		ctx := context.WithValue(r.Context(), "userID", userID)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
 func (o *Orchestrator) calculateHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("Получен запрос на расчет")
 	userID, ok := r.Context().Value("userID").(int)
 	if !ok {
-		http.Error(w, `{"error":"неавторизован"}`, http.StatusUnauthorized)
+		http.Error(w, `{"error":"Не авторизован"}`, http.StatusUnauthorized)
 		return
 	}
 
@@ -285,13 +158,13 @@ func (o *Orchestrator) calculateHandler(w http.ResponseWriter, r *http.Request) 
 		Expression string `json:"expression"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"неверное body"}`, http.StatusUnprocessableEntity)
+		http.Error(w, `{"error":"Невалидное тело"}`, http.StatusUnprocessableEntity)
 		return
 	}
 
 	dbExpr, err := o.Storage.CreateExpression(userID, req.Expression)
 	if err != nil {
-		http.Error(w, `{"error":"проблема в создании выражения"}`, http.StatusInternalServerError)
+		http.Error(w, `{"error":"Не удалось создать выражение"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -322,13 +195,13 @@ func (o *Orchestrator) calculateHandler(w http.ResponseWriter, r *http.Request) 
 func (o *Orchestrator) expressionsHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("userID").(int)
 	if !ok {
-		http.Error(w, `{"error":"неавторизован"}`, http.StatusUnauthorized)
+		http.Error(w, `{"error":"Не авторизован"}`, http.StatusUnauthorized)
 		return
 	}
 
 	dbExprs, err := o.Storage.GetExpressions(userID)
 	if err != nil {
-		http.Error(w, `{"error":"проблема в получении выражения"}`, http.StatusInternalServerError)
+		http.Error(w, `{"error":"Failed to get expressions"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -351,30 +224,30 @@ func (o *Orchestrator) expressionsHandler(w http.ResponseWriter, r *http.Request
 
 func (o *Orchestrator) expressionIDHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, `{"error":"неверный метод"}`, http.StatusMethodNotAllowed)
+		http.Error(w, `{"error":"Неверный метод"}`, http.StatusMethodNotAllowed)
 		return
 	}
 
 	userID, ok := r.Context().Value("userID").(int)
 	if !ok {
-		http.Error(w, `{"error":"неавторизован"}`, http.StatusUnauthorized)
+		http.Error(w, `{"error":"Не авторизован"}`, http.StatusUnauthorized)
 		return
 	}
 
 	idStr := r.URL.Path[len("/api/v1/expressions/"):]
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		http.Error(w, `{"error":"невалидное ID выражения"}`, http.StatusBadRequest)
+		http.Error(w, `{"error":"Невалидное ID выражения"}`, http.StatusBadRequest)
 		return
 	}
 
 	dbExpr, err := o.Storage.GetExpressionByID(id, userID)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
-			http.Error(w, `{"error":"выражение не найдено"}`, http.StatusNotFound)
+			http.Error(w, `{"error":"Выражение не найдено"}`, http.StatusNotFound)
 			return
 		}
-		http.Error(w, `{"error":"проблема в получнии выражения"}`, http.StatusInternalServerError)
+		http.Error(w, `{"error":"Не удалось получить выражение"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -405,7 +278,7 @@ func (o *Orchestrator) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 	task, err := o.Storage.GetPendingTask()
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
-			http.Error(w, `{"error":"нет доступной задачи"}`, http.StatusNotFound)
+			http.Error(w, `{"error":"No task available"}`, http.StatusNotFound)
 			return
 		}
 		http.Error(w, `{"error":"Internal error"}`, http.StatusInternalServerError)
@@ -423,12 +296,12 @@ func (o *Orchestrator) postTaskHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"невалидное тело"}`, http.StatusUnprocessableEntity)
+		http.Error(w, `{"error":"Invalid Body"}`, http.StatusUnprocessableEntity)
 		return
 	}
 
 	if err := o.Storage.CompleteTask(req.ID, req.Result); err != nil {
-		http.Error(w, `{"error":"проблема с завершением задачи"}`, http.StatusInternalServerError)
+		http.Error(w, `{"error":"Не удалось выполнить задание"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -437,7 +310,7 @@ func (o *Orchestrator) postTaskHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (o *Orchestrator) Tasks(expr *Expression) {
-	log.Printf("создаем задачи из выражения %s", expr.ID)
+	log.Printf("Создание задач для выражения %s", expr.ID)
 	exprID, _ := strconv.Atoi(expr.ID)
 
 	var stack []*ASTNode
@@ -454,7 +327,7 @@ func (o *Orchestrator) Tasks(expr *Expression) {
 
 		if !node.IsLeaf {
 			if len(stack) < 2 {
-				log.Printf("Недостаточно операндов для работы %s", node.Operator)
+				log.Printf("Недостаточно операндов для выполнения %s", node.Operator)
 				return
 			}
 
@@ -512,14 +385,142 @@ func (o *Orchestrator) Tasks(expr *Expression) {
 			Operation:     task.Operation,
 			OperationTime: task.OperationTime,
 		}); err != nil {
-			log.Printf("Failed to create task: %v", err)
+			log.Printf("Не удалось создать задачу: %v", err)
 			continue
 		}
 		o.taskStore[task.ID] = task
 		o.taskQueue = append(o.taskQueue, task)
-		log.Printf("Created task %s: %.2f %s %.2f",
+		log.Printf("Создана задача %s: %.2f %s %.2f",
 			task.ID, task.Arg1, task.Operation, task.Arg2)
 	}
+}
+
+func (o *Orchestrator) registerHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error":"Метод недоступен"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Login    string `json:"login"`
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"Невалидное тело запроса"}`, http.StatusBadRequest)
+		return
+	}
+
+	if req.Login == "" || req.Password == "" {
+		http.Error(w, `{"error":"Требуются логин и пароль"}`, http.StatusBadRequest)
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(req.Password)
+	if err != nil {
+		log.Printf("Не удалось хэшировать пароль: %v", err)
+		http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	userID, err := o.Storage.CreateUser(req.Login, hashedPassword)
+	if err != nil {
+		if errors.Is(err, storage.ErrAlreadyExists) {
+			http.Error(w, `{"error":"Пользователь уже существует"}`, http.StatusConflict)
+			return
+		}
+		log.Printf("Не удалось создать пользователя: %v", err)
+		http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"id":    userID,
+		"login": req.Login,
+	})
+}
+
+func (o *Orchestrator) loginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"error":"Метод недоступен"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Login    string `json:"login"`
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"Невалидное тело запроса"}`, http.StatusBadRequest)
+		return
+	}
+
+	user, err := o.Storage.GetUserByLogin(req.Login)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			http.Error(w, `{"error":"Invalid credentials"}`, http.StatusUnauthorized)
+			return
+		}
+		log.Printf("Не удалось получить доступ к пользователю: %v", err)
+		http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if !auth.CheckPasswordHash(req.Password, user.Password) {
+		http.Error(w, `{"error":"Invalid credentials"}`, http.StatusUnauthorized)
+		return
+	}
+
+	token, err := auth.GenerateJWT(user.ID)
+	if err != nil {
+		log.Printf("Не удалось сгенерировать токен: %v", err)
+		http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"token": token,
+		"user": map[string]interface{}{
+			"id":    user.ID,
+			"login": user.Login,
+		},
+	})
+}
+
+func (o *Orchestrator) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Входящий запрос на: %s", r.URL.Path)
+
+		if r.URL.Path == "/login" || r.URL.Path == "/register" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, `{"error":"Требуется заголовок авторизации"}`, http.StatusUnauthorized)
+			return
+		}
+
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		if tokenString == "" {
+			http.Error(w, `{"error":"Недопустимый формат заголовка авторизации"}`, http.StatusUnauthorized)
+			return
+		}
+
+		userID, err := auth.ParseJWT(tokenString)
+		if err != nil {
+			http.Error(w, `{"error":"Невалидный токен"}`, http.StatusUnauthorized)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), "userID", userID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func (o *Orchestrator) RunServer() error {
@@ -532,7 +533,7 @@ func (o *Orchestrator) RunServer() error {
 	proto.RegisterCalculatorServer(grpcServer, &server{o: o})
 
 	go func() {
-		log.Printf("запускается gRPC сеовер на порту %s", o.Config.GRPCAddr)
+		log.Printf("Запускаем gRPC сервер на порту %s", o.Config.GRPCAddr)
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
@@ -558,7 +559,7 @@ func (o *Orchestrator) RunServer() error {
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", o.authMiddleware(protected)))
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, `{"error":"API не найдено"}`, http.StatusNotFound)
+		http.Error(w, `{"error":"API Not Found"}`, http.StatusNotFound)
 	})
 
 	go func() {
@@ -566,7 +567,7 @@ func (o *Orchestrator) RunServer() error {
 			time.Sleep(2 * time.Second)
 			o.mu.Lock()
 			if len(o.taskQueue) > 0 {
-				log.Printf("Решаем задачи в очереди: %d", len(o.taskQueue))
+				log.Printf("Pending tasks in queue: %d", len(o.taskQueue))
 			}
 			o.mu.Unlock()
 		}
