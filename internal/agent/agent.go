@@ -64,7 +64,7 @@ func (a *Agent) Start() {
 	defer a.Conn.Close()
 
 	for i := 0; i < a.ComputingPower; i++ {
-		log.Printf("Starting worker %d", i)
+		log.Printf("Запускается worker %d", i)
 		go a.Worker(i)
 	}
 
@@ -77,7 +77,7 @@ func (a *Agent) Worker(id int) {
 			ComputingPower: int32(a.ComputingPower),
 		})
 		if err != nil {
-			log.Printf("Worker %d: error getting task: %v", id, err)
+			log.Printf("Worker %d: ошибка в получении задачи: %v", id, err)
 			time.Sleep(2 * time.Second)
 			continue
 		}
@@ -91,7 +91,7 @@ func (a *Agent) Worker(id int) {
 
 		result, err := Calculations(task.Operation, task.Arg1, task.Arg2)
 		if err != nil {
-			log.Printf("Worker %d: error computing task %s: %v", id, task.Id, err)
+			log.Printf("Worker %d: ошибка в выполнении %s: %v", id, task.Id, err)
 
 			_, _ = a.Client.SubmitResult(context.Background(), &proto.ResultRequest{
 				Id:     task.Id,
@@ -105,9 +105,9 @@ func (a *Agent) Worker(id int) {
 			Result: result,
 		})
 		if err != nil {
-			log.Printf("Worker %d: error submitting result for task %s: %v", id, task.Id, err)
+			log.Printf("Worker %d: ошибка при отправке результата для задания %s: %v", id, task.Id, err)
 		} else {
-			log.Printf("Worker %d: completed task %s: %.2f %s %.2f = %.2f",
+			log.Printf("Worker %d: завершена задача %s: %.2f %s %.2f = %.2f",
 				id, task.Id, task.Arg1, task.Operation, task.Arg2, result)
 		}
 	}
