@@ -9,7 +9,7 @@
 
 3)Включите CGO (если выключен) командой export CGO_ENABLED=1.
 
-4)Скачайте gcc compiler.(гайд есть на сайте. убедитесь что используете правильную 64-bit модель(https://www.codewithharry.com/blogpost/how-to-install-gnu-gcc-compiler-on-windows))
+4)Скачайте gcc compiler.(гайд есть на сайте. убедитесь что используете правильную 64-битную версию(https://www.codewithharry.com/blogpost/how-to-install-gnu-gcc-compiler-on-windows))
 
 5)Скопируйте репозиторий(через git bash):
 
