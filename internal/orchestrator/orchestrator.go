@@ -219,9 +219,9 @@ func (o *Orchestrator) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := authy.CompareHash(req.Password, user.Password); err!=nil {
-		http.Error(w, `{"error":"неверный пароль"}`, http.StatusUnauthorized)
-		return
+	if err := authy.CompareHash(user.Password, req.Password); err != nil {
+   	 	http.Error(w, `{"error":"неверный пароль"}`, http.StatusUnauthorized)
+    		return
 	}
 
 	token, err := authy.GenerateJWT(user.ID)
