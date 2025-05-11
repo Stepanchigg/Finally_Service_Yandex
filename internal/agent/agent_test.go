@@ -19,7 +19,7 @@ func CalculationsForTesting(operation string, a, b float64) (float64, error) {
 		}
 		return a / b, nil
 	default:
-		return 0, fmt.Errorf("невалидная операция: %s", operation)
+		return 0, fmt.Errorf("Невалидная операция: %s", operation)
 	}
 }
 
@@ -33,7 +33,7 @@ func TestCalculations(t *testing.T) {
 		err       error
 	}{
 		{
-			name:      "сложение позитива",
+			name:      "Сложение позитивных чисел",
 			operation: "+",
 			a:         2.5,
 			b:         3.5,
@@ -41,7 +41,7 @@ func TestCalculations(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name:      "сложение негатива",
+			name:      "Сложение негативных чисел",
 			operation: "+",
 			a:         -2.5,
 			b:         -3.5,
@@ -50,7 +50,7 @@ func TestCalculations(t *testing.T) {
 		},
 
 		{
-			name:      "вычет позитива",
+			name:      "Вычитание позитивных чисел",
 			operation: "-",
 			a:         5.0,
 			b:         2.5,
@@ -58,7 +58,7 @@ func TestCalculations(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name:      "вычет негатива",
+			name:      "Вычитание негативных чисел",
 			operation: "-",
 			a:         -5.0,
 			b:         -2.5,
@@ -67,7 +67,7 @@ func TestCalculations(t *testing.T) {
 		},
 
 		{
-			name:      "умножение позитива",
+			name:      "Умножение позитивных чисел",
 			operation: "*",
 			a:         2.0,
 			b:         3.0,
@@ -75,7 +75,7 @@ func TestCalculations(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name:      "умножение на ноль",
+			name:      "Умножение на нуль",
 			operation: "*",
 			a:         2.0,
 			b:         0.0,
@@ -84,7 +84,7 @@ func TestCalculations(t *testing.T) {
 		},
 
 		{
-			name:      "деление позитива",
+			name:      "Деление позитивных чисел",
 			operation: "/",
 			a:         6.0,
 			b:         2.0,
@@ -92,7 +92,7 @@ func TestCalculations(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name:      "деление на ноль",
+			name:      "Деление на нуль",
 			operation: "/",
 			a:         6.0,
 			b:         0.0,
@@ -102,13 +102,13 @@ func TestCalculations(t *testing.T) {
 		},
 
 		{
-			name:      "невалидный оператор",
+			name:      "Invalid operator",
 			operation: "$",
 			a:         2.0,
 			b:         3.0,
 			expected:  0.0,
 			expectErr: true,
-			err:       fmt.Errorf("невалидный оператор: %s", "invalid"),
+			err:       fmt.Errorf("invalid operator: %s", "$"),
 		},
 	}
 
@@ -118,18 +118,18 @@ func TestCalculations(t *testing.T) {
 
 			if tt.expectErr {
 				if err == nil {
-					t.Errorf("ожидаемая ошибка, получен nil")
+					t.Errorf("expected error, got nil")
 				} else if err.Error() != tt.err.Error() {
-					t.Errorf("ожидаемая ошибка: %v, получен: %v", tt.err, err)
+					t.Errorf("expected error: %v, got: %v", tt.err, err)
 				}
 				return
 			}
 
 			if err != nil {
-				t.Errorf("неожидаемая ошибка: %v", err)
+				t.Errorf("unexpected error: %v", err)
 			}
 			if result != tt.expected {
-				t.Errorf("ожидалось: %v, получено: %v", tt.expected, result)
+				t.Errorf("expected: %v, got: %v", tt.expected, result)
 			}
 		})
 	}
