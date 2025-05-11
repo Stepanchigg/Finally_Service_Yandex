@@ -16,7 +16,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	"calc_service/internal/auth"
+	"calc_service/internal/authy"
 	"calc_service/internal/proto"
 	"calc_service/internal/storage"
 )
@@ -416,7 +416,7 @@ func (o *Orchestrator) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hashedPassword, err := auth.HashPassword(req.Password)
+	hashedPassword, err := authy.HashPassword(req.Password)
 	if err != nil {
 		log.Printf("Не удалось хэшировать пароль: %v", err)
 		http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
@@ -469,12 +469,12 @@ func (o *Orchestrator) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !auth.CheckPasswordHash(req.Password, user.Password) {
+	if !authy.CheckPasswordHash(req.Password, user.Password) {
 		http.Error(w, `{"error":"Invalid credentials"}`, http.StatusUnauthorized)
 		return
 	}
 
-	token, err := auth.GenerateJWT(user.ID)
+	token, err := authy.GenerateJWT(user.ID)
 	if err != nil {
 		log.Printf("Не удалось сгенерировать токен: %v", err)
 		http.Error(w, `{"error":"Internal server error"}`, http.StatusInternalServerError)
@@ -512,7 +512,7 @@ func (o *Orchestrator) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		userID, err := auth.ParseJWT(tokenString)
+		userID, err := authy.ParseJWT(tokenString)
 		if err != nil {
 			http.Error(w, `{"error":"Невалидный токен"}`, http.StatusUnauthorized)
 			return
