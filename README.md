@@ -34,12 +34,11 @@ go run cmd/orchestrator/orchestrator_start.go
 ```
 
 Вы получите ответ:
-Starting Orchestrator on port 8080
-Starting gRPC server on port 50051
-Starting HTTP server on port 8080
+2025/05/12 00:30:25 Запускаем Orchestrator на порту 8080
+2025/05/12 00:30:25 Запускаем HTTP сервер на порту 8080
+2025/05/12 00:30:25 Запускаем gRPC сервер на порту 50051
 
-
-В новом bash(у меня так,может у вас будет доcтупно и в одном и том же ):
+В новом окне git bash:
 
 Опять переходим в репозиторию с проектом:
 
@@ -53,20 +52,20 @@ cd Finally_Service_Yandex
 export COMPUTING_POWER=4
 export ORCHESTRATOR_URL=localhost:50051
 
- go run cmd\agent\agent_start.go
+ go run cmd/agent/agent_start.go
 ```
 
 Вы получите ответ:
-Starting Agent...
-Starting worker 0
-Starting worker 1
-Starting worker 2
-Starting worker 3
+2025/05/12 01:17:05 Запусаем Agent...
+2025/05/12 01:17:05 Запускается worker 0
+2025/05/12 01:17:05 Запускается worker 1
+2025/05/12 01:17:05 Запускается worker 2
+2025/05/12 01:17:05 Запускается worker 3
 
-Worker 2: error getting task: rpc error: code = Unknown desc = not found
-Worker 0: error getting task: rpc error: code = Unknown desc = not found
-Worker 3: error getting task: rpc error: code = Unknown desc = not found
-Worker 1: error getting task: rpc error: code = Unknown desc = not found
+2025/05/12 01:16:09 Worker 0: ошибка в получении задачи: rpc error: code = Unknown desc = not found
+2025/05/12 01:16:09 Worker 1: ошибка в получении задачи: rpc error: code = Unknown desc = not found
+2025/05/12 01:16:09 Worker 3: ошибка в получении задачи: rpc error: code = Unknown desc = not found
+2025/05/12 01:16:11 Worker 2: ошибка в получении задачи: rpc error: code = Unknown desc = not found
 (это потому что нет активных задач)
 
 Регестрируем нового пользователя:
@@ -129,7 +128,7 @@ curl --location 'http://localhost:8080/api/v1/expressions' \
 Если вычисления выполнены то:
 
 ```bash
-{"expression":{"id":"1","expression":"2*2+2","status":"completed","result":6}}
+{"expression":{"id":"1","expression":"2*2+2","result":6,"status":"completed"}}
 ```
 
 Ошибки при запросах:
@@ -137,7 +136,7 @@ curl --location 'http://localhost:8080/api/v1/expressions' \
 Ошибка при создании пользователя который уже существует:
 
 ```bash
-{"error":"User already exists"}
+{"error":"Пользователь уже существует"}
 ```
 
 Ошибка 404(отсутствие выражения ):
@@ -162,26 +161,8 @@ curl --location 'http://localhost:8080/api/v1/calculate' \
 
 ```bash
 {
-  {"error":"expected number at position 2"}
+  {"error":"неожиданное число на месте 2"}
 }
-```
-
-Ошибка неправильного знака:
-
-```bash
-curl --location 'http://localhost:8080/api/v1/calculate' \
---header 'Content-Type: application/json' \
---header 'Authorization: Bearer (здесь JWT коин, Bearer не трогаем)' \
---data '
-{
-  "expression": "2\0"
-}'
-```
-
-Ответ:
-
-```bash
-{"error":"Invalid token"}
 ```
 
 Ошибка 500 (внутренняя ошибка сервера ):
@@ -194,7 +175,7 @@ curl --location 'http://localhost:8080/api/v1/calculate' \
   "expression": "2/0"
 }'
 ```
-Ответ(у  меня высвечивается изначально id созданной задачи,а после в git bash где был запущен agent.start можно увидеть что выводится деление на 0 ):
+Ответ(у  меня высвечивается изначально id созданной задачи,а в окне git bash где был запущен agent можно увидеть что выводится деление на 0 ):
 
 ```bash
 {
@@ -221,7 +202,7 @@ go test ./internal/agent/agent_test.go
 Интеграционный
 
 ```bash
-go test ./cmd/orchestrator/intertest.go (интеграционный)
+go test ./cmd/inter_test.go
 ```
 
 Для Storage
